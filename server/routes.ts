@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import type { Server } from "http";
-import { setupAuth } from "./auth";
+import { setupAuth } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { registerChatRoutes } from "./replit_integrations/chat";
+import { registerImageRoutes } from "./replit_integrations/image";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 // Mock AI Generators since we might not have keys immediately
 async function mockGenerate(type: string, prompt: string): Promise<{ url: string, duration?: number }> {
@@ -24,13 +27,18 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Setup Auth
-  setupAuth(app);
+  // Setup Replit Auth
+  await setupAuth(app);
+  
+  // Register Integration Routes
+  registerChatRoutes(app);
+  registerImageRoutes(app);
+  registerObjectStorageRoutes(app);
 
   // Projects
   app.get(api.projects.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const projects = await storage.getProjects(req.user.id);
+    const projects = await storage.getProjects(req.user!.id);
     res.json(projects);
   });
 
@@ -38,7 +46,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const input = api.projects.create.input.parse(req.body);
-      const project = await storage.createProject({ ...input, userId: req.user.id });
+      const project = await storage.createProject({ ...input, userId: req.user!.id });
       res.status(201).json(project);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -53,7 +61,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const project = await storage.getProject(Number(req.params.id));
     if (!project) return res.sendStatus(404);
-    if (project.userId !== req.user.id) return res.sendStatus(403);
+    if (project.userId !== req.user!.id) return res.sendStatus(403);
     res.json(project);
   });
 
@@ -61,7 +69,7 @@ export async function registerRoutes(
   app.get(api.assets.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
-    const assets = await storage.getAssets(req.user.id, projectId);
+    const assets = await storage.getAssets(req.user!.id, projectId);
     res.json(assets);
   });
 
@@ -73,22 +81,26 @@ export async function registerRoutes(
       const input = api.assets.generate.input.parse(req.body);
       
       // Check credits (Mock check)
-      if (req.user.credits < 5) {
+      const credits = req.user!.credits || 0;
+      if (credits < 5) {
         return res.status(402).json({ message: "Insufficient credits" });
       }
 
       // Create 'pending' asset
       const asset = await storage.createAsset({
-        userId: req.user.id,
+        userId: req.user!.id,
         projectId: input.projectId,
         type: input.type,
         prompt: input.prompt,
         status: "processing",
         url: "",
+        style: input.style,
+        duration: input.duration,
+        aspectRatio: input.aspectRatio,
       });
 
       // Deduct credits
-      await storage.updateUserCredits(req.user.id, req.user.credits - 5);
+      await storage.updateUserCredits(req.user!.id, credits - 5);
 
       // Start generation (Async - normally would be a job queue)
       mockGenerate(input.type, input.prompt).then(async (result) => {
