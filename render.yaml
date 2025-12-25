@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: creative-forge-api
+    runtime: python
+    pythonVersion: 3.11
+    buildCommand: pip install -r requirements. txt && alembic upgrade head
+    startCommand: gunicorn --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 app. main:app
+    plan: standard
+    envVars:
+      - key:  ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase: 
+          name: creative-forge-db
+          property: connectionString
+      - key:  REDIS_URL
+        fromService:
+          name: creative-forge-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: REPLICATE_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key:  HEYGEN_API_KEY
+        sync:  false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key:  STABILITY_API_KEY
+        sync:  false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync:  false
+      - key: SUPABASE_KEY
+        sync: false
+
+  - type: redis
+    name: creative-forge-redis
+    plan: standard
+
+databases:
+  - name: creative-forge-db
+    databaseName: creative_forge
+    plan: standard
+    version: 15
