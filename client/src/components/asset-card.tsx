@@ -1,7 +1,7 @@
 import { Asset } from "@shared/schema";
 import { Card, Badge, Button } from "./ui-components";
 import { format } from "date-fns";
-import { Video, Image as ImageIcon, Type, User, Download, Play, MoreHorizontal } from "lucide-react";
+import { Video, Image as ImageIcon, Type, User, Download, Play, MoreHorizontal, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 interface AssetCardProps {
@@ -99,5 +99,3 @@ export function AssetCard({ asset, onClick }: AssetCardProps) {
     </Card>
   );
 }
-
-import { Sparkles } from "lucide-react";
